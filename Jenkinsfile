@@ -1,39 +1,49 @@
 pipeline {
     agent any
 
+    options {
+        timeout(time: 1, unit: 'HOURS') // Set the timeout for the entire pipeline run
+    }
+
     tools {
-        maven 'Maven' // Name of the Maven installation in Jenkins
-        jdk 'Java' // Name of the JDK installation in Jenkins
+        maven 'maven'
+        jdk 'java'
     }
 
     environment {
         SONAR_PROJECT_KEY = 'com.example:demo-project'
-        SONAR_HOST_URL = 'http://your-sonarqube-server'
-        SONAR_LOGIN_KEY = 'your-sonarqube-authentication-token'
+        SONAR_HOST_URL = 'http://54.183.16.150:9000/'
+        SONAR_LOGIN_KEY = 'squ_00e59a483d0dd795a8202ff6a549baf1b2bcdffe'
     }
 
     stages {
         stage('Checkout Code') {
             steps {
-                checkout scm // This assumes Jenkins is configured with SCM details
+                git branch: 'main', url: 'https://github.com/kishoretk12/jenkins-test.git'
             }
         }
 
         stage('Build with Maven') {
+            options {
+                timeout(time: 30, unit: 'MINUTES') // Set a timeout for this specific stage
+            }
             steps {
                 sh 'mvn clean install'
             }
         }
 
         stage('SonarQube Analysis') {
+            options {
+                timeout(time: 30, unit: 'MINUTES') // Set a timeout for this specific stage
+            }
             steps {
                 script {
-                    withSonarQubeEnv('Your SonarQube Server') {
+                    withSonarQubeEnv('sonar-server') {
                         sh """
-                            mvn sonar:sonar \
-                                -Dsonar.projectKey=${env.SONAR_PROJECT_KEY} \
-                                -Dsonar.host.url=${env.SONAR_HOST_URL} \
-                                -Dsonar.login=${env.SONAR_LOGIN_KEY}
+                            mvn clean verify sonar:sonar \
+                            -Dsonar.projectKey=com.example:demo-project \
+                            -Dsonar.host.url=http://54.183.16.150:9000 \
+                            -Dsonar.login=squ_00e59a483d0dd795a8202ff6a549baf1b2bcdffe
                         """
                     }
                 }
@@ -43,14 +53,18 @@ pipeline {
         stage('Quality Gate') {
             steps {
                 script {
-                    timeout(time: 5, unit: 'MINUTES') {
-                        def qg = waitForQualityGate()
-                        if (qg.status != 'OK') {
-                            echo 'Quality Gate Failed: ${qg.status}'
-                            error "Pipeline aborted due to quality gate failure"
-                        }
-                    }
+                    waitForQualityGate abortPipeline: false, credentialsId: 'sonar'
                 }
+            }
+        }
+
+        stage('Next Build') {
+            when {
+                expression { currentBuild.result == 'SUCCESS' }
+            }
+            steps {
+                echo 'Starting next build...'
+                // Add your specific build steps here
             }
         }
     }
@@ -59,12 +73,6 @@ pipeline {
         always {
             echo 'Cleaning up'
             sh 'mvn clean'
-        }
-        success {
-            echo 'Build and analysis completed successfully.'
-        }
-        failure {
-            echo 'Build or analysis failed.'
         }
     }
 }
