@@ -19,7 +19,7 @@ pipeline {
     stages {
         stage('Checkout Code') {
             steps {
-                git branch: 'main', url: 'https://github.com/kishoretk12/jenkins-test.git'
+                git branch: 'main', credentialsId: 'git-token', url: 'https://github.com/kishoretk12/jenkins-test.git'
             }
         }
 
